@@ -1,0 +1,3 @@
+/Users/simenonszhang/project-2023/framework/build/CMakeFiles/turing.dir
+/Users/simenonszhang/project-2023/framework/build/CMakeFiles/edit_cache.dir
+/Users/simenonszhang/project-2023/framework/build/CMakeFiles/rebuild_cache.dir
