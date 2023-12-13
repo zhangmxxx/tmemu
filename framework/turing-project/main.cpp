@@ -66,49 +66,10 @@ int main(int argc, char* argv[]){
   }
   
   /* parse tm file */
-  int ret = parse_tmfile(file);
-  if (ret == -1) {
+  if (parse_tmfile(file) == -1) {
     cerr << "Unable to open file: " << file << endl;
     return 1;
   }
-
-  cerr << "Q:\n";
-  for (auto state : Q) {
-    cerr << state << " ";
-  }
-  cerr << endl;
-
-  cerr << "S:\n";
-  for (auto state : S) {
-    cerr << state << " ";
-  }
-  cerr << endl;
-
-  cerr << "G:\n";
-  for (auto state : G) {
-    cerr << state << " ";
-  }
-  cerr << endl;
-
-  cerr << "S:\n";
-  cerr << q0 << endl;
-
-  cerr << "B:\n";
-  cerr << B << endl;
-
-  cerr << "F:\n";
-  for (auto state : F) {
-    cerr << state << " ";
-  }
-  cerr << endl;
-
-  cerr << "N:\n";
-  cerr << tapenum << endl;
-
-  for (auto t : delta) {
-    cerr << t._state << " " << t._sym << " " << t.sym_ << " " << t.dir << " " << t.state_ << endl;
-  }
-
   if (!check_input(input)) {
     cerr << input_err_msg << endl;
     return 1;
