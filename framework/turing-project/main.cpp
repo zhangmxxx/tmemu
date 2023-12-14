@@ -20,16 +20,11 @@ const int MAX_LEN = (1 << 20);
 }})
 #define IDX(i) abs(i - (MAX_LEN >> 1))
 
-
-bool verbose = false;
-
 struct transition {
   int _state, state_; // state
   string _sym, sym_; // tape symbol combinition
   string dir; // moving direction
 };
-
-
 
 void Split(const string &src, vector<string> &ret, const string& c);
 void extract(const string &src, vector<string> &ret);
@@ -44,6 +39,10 @@ void print_tape_runtime(int id, int len);
 int strtoint(string &input);
 int digits(int num);
 
+
+/* emulator options */
+bool verbose = false;
+
 /* turing machine definitions */
 static vector<string> Q;
 static set<char> S, G;
@@ -56,8 +55,6 @@ static vector<transition> delta;
 
 /* runtime variables */
 static vector<vector<char>> tapes;
-static vector<int> heads;
-static vector<int> tails;
 static vector<int> cur;
 bool accept = false;
 
@@ -127,6 +124,7 @@ int parse_tmfile(string &filename) {
         else { Assert(0); }
       }
     }
+    /* transition functions */
     else {
       transition t;
       Assert(part.size() == 5);
@@ -172,8 +170,6 @@ void check_input(string &input) {
 void init_emulator(string &input) {
   for (int i = 0; i < tapenum; ++i) {
     tapes.push_back(vector<char>(MAX_LEN, B));
-    heads.push_back((MAX_LEN >> 1)); 
-    tails.push_back((MAX_LEN >> 1) - 1);
     cur.push_back((MAX_LEN >> 1));
   }
 
@@ -181,7 +177,7 @@ void init_emulator(string &input) {
   int pos = cur[0];
   for (int i = 0; i < input.length(); ++i) {
     tapes[0][pos] = input[i];
-    pos++; tails[0]++;
+    pos++;
   }
 }
 
@@ -193,6 +189,7 @@ int state_id(string &state) {
 }
 
 /* assert at most one valid transition */
+// TODO: add support for multi-way trainsition in "do if not exists" practice
 int trans_id(int state, string &syms) {
   for (int i = 0; i < delta.size(); ++i) {
     transition t = delta[i];
@@ -212,7 +209,6 @@ void run_emulator() {
   int step = 0, state = q0;
   while(1) {
     if (verbose) {
-      /* get fixed length */
       int len = digits(tapenum) + 6;
 
       printf("%-*s: %d\n", len, "Step", step);
@@ -294,7 +290,6 @@ void print_tape_runtime(int id, int len) {
     if (i == cur[id]) { cout << '^' << endl; break; }
     printf("%-*c", digits(IDX(i)) + 1, ' ');
   }
-
 }
 
 void Split(const string &src, vector<string> &ret, const string& c){
