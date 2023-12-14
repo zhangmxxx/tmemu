@@ -1,3 +1,4 @@
 framework/build/
 framework/bin/turing
 framework/programs/test.tm
+framework/bin/*.txt
