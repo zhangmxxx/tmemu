@@ -6,11 +6,11 @@
 #include <cassert>
 using namespace std;
 
-// 其实只需要在运行时考虑verbose. 其余的一律cerr.
 /* const */
 const string help_msg = "usage: turing [-v|--verbose] [-h|--help] <tm> <input>";
 const string parse_err_msg = "syntax error";
 const string input_err_msg = "illegal input string";
+const int MAX_LEN = (1 << 20);
 
 /* macro definition */
 #define STRINGIFY(s)  #s
@@ -26,26 +26,41 @@ const string input_err_msg = "illegal input string";
 bool verbose = false;
 
 struct transition {
-  string _state, state_; // state
+  int _state, state_; // state
   string _sym, sym_; // tape symbol combinition
   string dir; // moving direction
 };
 
+
+
 void Split(const string &src, vector<string> &ret, const string& c);
 void extract(const string &src, vector<string> &ret);
 int parse_tmfile(string &filename);
-bool check_input(string &input);
+void check_input(string &input);
+void init_emulator(string &input);
+int state_id(string &state);
+int trans_id(int state, string &syms);
+void run_emulator();
+void print_tape(int id);
+void print_tape_runtime(int id, int len);
 int strtoint(string &input);
 
 /* turing machine definitions */
-static set<string> Q;
+static vector<string> Q;
 static set<char> S, G;
-static string q0;
+static int q0;
 static char B;
-static set<string> F;
+static set<int> F;
 static int N;
 static int tapenum;
 static vector<transition> delta;
+
+/* runtime variables */
+static vector<vector<char>> tapes;
+static vector<int> heads;
+static vector<int> tails;
+static vector<int> cur;
+bool accept = false;
 
 int main(int argc, char* argv[]){
   string file = "", input = "";
@@ -70,10 +85,15 @@ int main(int argc, char* argv[]){
     cerr << "Unable to open file: " << file << endl;
     return 1;
   }
-  if (!check_input(input)) {
-    cerr << input_err_msg << endl;
-    return 1;
-  }
+
+  /* check input */
+  check_input(input);
+
+  /* init emulator */
+  init_emulator(input);
+
+  /* run */
+  run_emulator();
 }
 
 int parse_tmfile(string &filename) {
@@ -97,12 +117,12 @@ int parse_tmfile(string &filename) {
       extract(part[2], elements);
       for (auto elem : elements) {
         bool is_char = elem.length() == 1;
-        if (part[0] == "#Q") { Q.insert(elem); }
+        if (part[0] == "#Q") { Q.push_back(elem); }
         else if (part[0] == "#S") { Assert(is_char); S.insert(elem[0]); }
         else if (part[0] == "#G") { Assert(is_char); G.insert(elem[0]); }
-        else if (part[0] == "#q0") { q0 = elem; }
+        else if (part[0] == "#q0") { q0 = state_id(elem); }
         else if (part[0] == "#B") { Assert(is_char); B = elem[0]; }
-        else if (part[0] == "#F") { F.insert(elem); }
+        else if (part[0] == "#F") { F.insert(state_id(elem)); }
         else if (part[0] == "#N") { tapenum = strtoint(elem); }
         else { Assert(0); }
       }
@@ -110,7 +130,7 @@ int parse_tmfile(string &filename) {
     else {
       transition t;
       Assert(part.size() == 5);
-      t._state = part[0]; t.state_ = part[4];
+      t._state = state_id(part[0]); t.state_ = state_id(part[4]);
       t._sym = part[1]; t.sym_ = part[2];
       t.dir = part[3];
       Assert(t._sym.length() == tapenum && t.sym_.length() == tapenum && t.dir.length() == tapenum);
@@ -128,11 +148,145 @@ int parse_tmfile(string &filename) {
   return 0;
 }
 
-bool check_input(string &input) {
+void check_input(string &input) {
   for (int i = 0; i < input.size(); ++i) {
-    if (S.find(input[i]) == S.end()) return false;
+    if (S.find(input[i]) == S.end()) {
+      if (verbose) {
+        cerr << "Input: " << input << endl;
+        cerr << "==================== ERR ====================\n";
+        cerr << "error: Symbol \"" << input[i] << "\" in input is not defined in the set of input symbols\n";
+        cerr << "Input: " << input << endl;
+        for (int _ = 0; _ < i + 7; ++_) cerr << ' '; cerr << "^\n";
+        cerr << "==================== END ====================\n";
+      }
+      else cerr << input_err_msg << endl;
+      exit(1);
+    }
   }
-  return true;
+  cout << "Input: " << input << endl;
+  cout << "==================== RUN ====================\n";
+}
+
+void init_emulator(string &input) {
+  for (int i = 0; i < tapenum; ++i) {
+    tapes.push_back(vector<char>(MAX_LEN, B));
+    heads.push_back((MAX_LEN >> 1)); 
+    tails.push_back((MAX_LEN >> 1) - 1);
+    cur.push_back((MAX_LEN >> 1));
+  }
+
+  /* place input */
+  int pos = cur[0];
+  for (int i = 0; i < input.length(); ++i) {
+    tapes[0][pos] = input[i];
+    pos++; tails[0]++;
+  }
+}
+
+int state_id(string &state) {
+  for (int i = 0; i < Q.size(); ++i) {
+    if (Q[i] == state) return i; 
+  }
+  Assert(0);
+}
+
+/* assert at most one valid transition */
+int trans_id(int state, string &syms) {
+  for (int i = 0; i < delta.size(); ++i) {
+    transition t = delta[i];
+    if (t._state == state) {
+      bool flag = true;
+      for (int j = 0; j < tapenum; ++j) {
+        if (t._sym[j] == '*') continue;
+        if (t._sym[j] != syms[j]) { flag = false; break; }
+      }
+      if (flag) return i;
+    }
+  }
+  return -1;
+}
+
+void run_emulator() {
+  int step = 0, state = q0;
+  while(1) {
+    if (verbose) {
+      /* get fixed length */
+      int digits = 0, tmp = tapenum, len = 0;
+      while(tmp) { digits++; tmp /= 10; }
+      len = digits + 6;
+
+      printf("%-*s: %d\n", len, "Step", step);
+      printf("%-*s: ", len, "State");
+      cout << Q[state] << endl; // weird string
+      printf("%-*s: ", len, "Acc");
+      if (accept) cout << "Yes" << endl;
+      else cout << "No" << endl;
+      for (int i = 0; i < tapenum; ++i) print_tape_runtime(i, digits + 1);
+      cout << "---------------------------------------------" << endl;
+    }
+
+    string syms = "";
+    for (int i = 0; i < tapenum; ++i) syms += tapes[i][cur[i]];
+
+    int transition_id = trans_id(state, syms);
+    if (transition_id == -1) break; // halt
+
+    transition t = delta[trans_id(state, syms)];
+    
+    /* change state */
+    state = t.state_;
+    if (F.find(state) != F.end()) accept = true;
+
+    for (int id = 0; id < tapenum; ++id) {
+      /* rewrite symbol */
+      if (!(t._sym[id] == '*' && t.sym_[id] == '*')) {
+        tapes[id][cur[id]] = t.sym_[id];
+      }
+      /* move */
+      if (t.dir[id] == 'l') { cur[id]--; Assert(cur[id] >= 0); }
+      else if (t.dir[id] == 'r') { cur[id]++; Assert(cur[id] < MAX_LEN); }
+      else if (t.dir[id] == '*') ;
+      else Assert(0);
+    }
+    step++;
+  }
+  if (accept) cout << "ACCEPTED" << endl;
+  else cout << "UNACCEPTED" << endl;
+  cout << "Result: ";
+  print_tape(0);
+  cout << endl;
+  cout << "==================== END ====================" << endl;
+}
+
+void print_tape(int id) {
+  int pos1 = 0, pos2 = MAX_LEN - 1;
+  while (pos1 < MAX_LEN && tapes[id][pos1] == B) pos1++;
+  while (pos2 >= 0 && tapes[id][pos2] == B) pos2--;
+  if (pos1 > pos2) pos1 = pos2 = cur[id];
+  pos1 = min(pos1, cur[id]); pos2 = max(pos2, cur[id]);
+  for (int i = pos1; i <= pos2; ++i) cout << tapes[id][i];
+}
+
+void print_tape_runtime(int id, int len) {
+  // idx, tape_content, head
+  printf("Index%-*d: ", len, id);
+  int pos1 = 0, pos2 = MAX_LEN - 1;
+  while (pos1 < MAX_LEN && tapes[id][pos1] == B) pos1++;
+  while (pos2 >= 0 && tapes[id][pos2] == B) pos2--;
+  if (pos1 > pos2) pos1 = pos2 = cur[id];
+  pos1 = min(pos1, cur[id]); pos2 = max(pos2, cur[id]);
+
+  for (int i = pos1; i < pos2; ++i) cout << abs(i - (MAX_LEN >> 1)) << " ";
+  cout << abs(pos2 - (MAX_LEN >> 1)) << endl;
+  printf("Tape%-*d: ", len + 1, id);
+  for (int i = pos1; i < pos2; ++i) cout << tapes[id][i] << " ";
+  cout << tapes[id][pos2] << endl;
+  printf("Head%-*d: ", len + 1, id);
+  for (int i = pos1; i <= pos2; ++i) {
+    if (i == cur[id]) { cout << '^' << endl; break; }
+    cout << "  ";
+  }
+
 }
 
 void Split(const string &src, vector<string> &ret, const string& c){
