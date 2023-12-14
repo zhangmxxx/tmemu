@@ -7,9 +7,6 @@
 using namespace std;
 
 /* const */
-const string help_msg = "usage: turing [-v|--verbose] [-h|--help] <tm> <input>";
-const string parse_err_msg = "syntax error";
-const string input_err_msg = "illegal input string";
 const int MAX_LEN = (1 << 20);
 
 /* macro definition */
@@ -17,10 +14,11 @@ const int MAX_LEN = (1 << 20);
 #define TOSTRING(s) STRINGIFY(s)
 #define Assert(cond) \
 ({ if (!(cond)) { \
-  cerr << parse_err_msg << endl; \
+  cerr << "syntax error" << endl; \
   cerr << " @ " << __FILE__ << ":" << TOSTRING(__LINE__) << "  \n"; \
   exit(1); \
 }})
+#define IDX(i) abs(i - (MAX_LEN >> 1))
 
 
 bool verbose = false;
@@ -44,6 +42,7 @@ void run_emulator();
 void print_tape(int id);
 void print_tape_runtime(int id, int len);
 int strtoint(string &input);
+int digits(int num);
 
 /* turing machine definitions */
 static vector<string> Q;
@@ -68,14 +67,14 @@ int main(int argc, char* argv[]){
   for (int i = 1; i < argc; ++i) {
     string arg = argv[i];
     if (arg == "--help" || arg == "-h") {
-      cout << help_msg << endl;
+      cout <<  "usage: turing [-v|--verbose] [-h|--help] <tm> <input>" << endl;
       return 0;
     }
     else if (arg == "--verbose" || arg == "-v") { verbose = true; }
     else if (file == "") { file = arg; }
     else if (input == "") { input = arg; }
     else {
-      cerr << help_msg << endl;
+      cerr <<  "usage: turing [-v|--verbose] [-h|--help] <tm> <input>" << endl;
       return 1;
     }
   }
@@ -160,7 +159,7 @@ void check_input(string &input) {
         for (int _ = 0; _ < i + 7; ++_) cerr << ' '; cerr << "^\n";
         cerr << "==================== END ====================\n";
       }
-      else cerr << input_err_msg << endl;
+      else cerr << "illegal input string" << endl;
       exit(1);
     }
   }
@@ -214,9 +213,7 @@ void run_emulator() {
   while(1) {
     if (verbose) {
       /* get fixed length */
-      int digits = 0, tmp = tapenum, len = 0;
-      while(tmp) { digits++; tmp /= 10; }
-      len = digits + 6;
+      int len = digits(tapenum) + 6;
 
       printf("%-*s: %d\n", len, "Step", step);
       printf("%-*s: ", len, "State");
@@ -224,7 +221,7 @@ void run_emulator() {
       printf("%-*s: ", len, "Acc");
       if (accept) cout << "Yes" << endl;
       else cout << "No" << endl;
-      for (int i = 0; i < tapenum; ++i) print_tape_runtime(i, digits + 1);
+      for (int i = 0; i < tapenum; ++i) print_tape_runtime(i, digits(tapenum) + 1);
       cout << "---------------------------------------------" << endl;
     }
 
@@ -287,15 +284,15 @@ void print_tape_runtime(int id, int len) {
   if (pos1 > pos2) pos1 = pos2 = cur[id];
   pos1 = min(pos1, cur[id]); pos2 = max(pos2, cur[id]);
 
-  for (int i = pos1; i < pos2; ++i) cout << abs(i - (MAX_LEN >> 1)) << " ";
-  cout << abs(pos2 - (MAX_LEN >> 1)) << endl;
+  for (int i = pos1; i <= pos2; ++i) cout << IDX(i) << " ";
+  cout << endl;
   printf("Tape%-*d: ", len + 1, id);
-  for (int i = pos1; i < pos2; ++i) cout << tapes[id][i] << " ";
-  cout << tapes[id][pos2] << endl;
+  for (int i = pos1; i <= pos2; ++i) printf("%-*c", digits(IDX(i)) + 1, tapes[id][i]);
+  cout << endl;
   printf("Head%-*d: ", len + 1, id);
   for (int i = pos1; i <= pos2; ++i) {
     if (i == cur[id]) { cout << '^' << endl; break; }
-    cout << "  ";
+    printf("%-*c", digits(IDX(i)) + 1, ' ');
   }
 
 }
@@ -325,4 +322,11 @@ int strtoint(string &input) {
     ans += input[i] - '0';
   }
   return ans;
+}
+
+int digits(int num) {
+  if (!num) return 1;
+  int ret = 0;
+  while (num) { ret++; num /= 10; }
+  return ret;
 }
