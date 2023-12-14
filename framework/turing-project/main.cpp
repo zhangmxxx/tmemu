@@ -105,7 +105,8 @@ int parse_tmfile(string &filename) {
     vector<string> part; part.clear();
     /* cut off comment */
     string::size_type end = 0;
-    while (end < line.length() && line[end] != ';') end++;
+    while (end < line.length() && line[end] != ';') { end++; } end--;
+    while (end >= 0 && line[end] == ' ') { end--; } end++;
     line = line.substr(0, end);
     /* empty line */
     if (line.length() == 0) { continue; }
@@ -163,8 +164,10 @@ void check_input(string &input) {
       exit(1);
     }
   }
-  cout << "Input: " << input << endl;
-  cout << "==================== RUN ====================\n";
+  if (verbose) {
+    cout << "Input: " << input << endl;
+    cout << "==================== RUN ====================\n";
+  }
 }
 
 void init_emulator(string &input) {
@@ -250,12 +253,20 @@ void run_emulator() {
     }
     step++;
   }
-  if (accept) cout << "ACCEPTED" << endl;
-  else cout << "UNACCEPTED" << endl;
-  cout << "Result: ";
-  print_tape(0);
-  cout << endl;
-  cout << "==================== END ====================" << endl;
+  if (verbose) {
+    if (accept) cout << "ACCEPTED" << endl;
+    else cout << "UNACCEPTED" << endl;
+    cout << "Result: ";
+    print_tape(0);
+    cout << endl;
+    cout << "==================== END ===================="   << endl;
+  }
+  else {
+    if (accept) cout << "(ACCEPTED) ";
+    else cout << "(UNACCEPTED) ";
+    print_tape(0);
+    cout << endl;
+  }
 }
 
 void print_tape(int id) {
