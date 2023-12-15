@@ -1,0 +1,15 @@
+1. transition的存储方式 (1.vector[state_num]. 可以直接索引某个state的转移方程, 但是在parse_file的过程中对该数组进行扩充; 对于*通配符, 需要逐个遍历. 2. 存起点终点. 但每次进行转移时, 都需要遍历整个数组. (但可以保证, 能够找到唯一的转移结果.))
+2. 
+*3. syntax error 是否可以展示详细信息. 换言之, 检测程序是否会对错误信息进行正确性判定.
+4. parse_error在parse_tmfile中自行exit(1), 不用管其返回值并return 1.
+5.
+#define STRINGIFY(s)        #s
+#define TOSTRING(s)         STRINGIFY(s)
+TOSTRING的作用?
+6. macro中, if(!(cond))的括号!! 宏展开没有语义.
+7. head = tail时, 写入B, head + 1, tail - 1, 不符合 head = tail + 1的初始状态.
+还是每次从头开始找吧. 
+
+
+bugs: 当一行的末尾有空格时, 会错误的将一段空格用"空格分割"后计入part.
+1. 如果行内(逗号间有空格, 那么第一步parse 空格时就会出错, 导致{被分到一个部分里, check_bracket出错.
