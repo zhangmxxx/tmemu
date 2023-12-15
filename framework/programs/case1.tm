@@ -1,6 +1,6 @@
 #Q = {0,scan_a,scan_b,rej,acc,mvl,cp,mvl2,csm,mvr,wrt,mvl3,halt,mvr2,mvl4,rej1,rej2,rej3,rej4,rej5,rej6,rej7,rej8,rej9,rej10,rej11,rej12,rej13}
 #S = {a,b}
-#G = {a,b,c,_}
+#G = {a,b,c,_,I,l,e,g,n,p,u,t}
 #q0 = 0
 #B = _
 #F = {acc}

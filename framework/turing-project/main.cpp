@@ -15,7 +15,7 @@ const int MAX_LEN = (1 << 20);
 #define Assert(cond) \
 ({ if (!(cond)) { \
   cerr << "syntax error" << endl; \
-  cerr << " @ " << __FILE__ << ":" << TOSTRING(__LINE__) << "  \n"; \
+  if (verbose) { cerr << " @ " << __FILE__ << ":" << TOSTRING(__LINE__) << "  \n"; } \
   exit(1); \
 }})
 #define IDX(i) abs(i - (MAX_LEN >> 1))
@@ -28,6 +28,8 @@ struct transition {
 
 void Split(const string &src, vector<string> &ret, const string& c);
 void extract(const string &src, vector<string> &ret);
+bool check_bracket(const string &src);
+bool check_in_space(const string &src);
 int parse_tmfile(string &filename);
 void check_input(string &input);
 void init_emulator(string &input);
@@ -113,13 +115,14 @@ int parse_tmfile(string &filename) {
       vector<string> elements; elements.clear();
       extract(part[2], elements);
       for (auto elem : elements) {
+        Assert(check_in_space(elem));
         bool is_char = elem.length() == 1;
-        if (part[0] == "#Q") { Q.push_back(elem); }
-        else if (part[0] == "#S") { Assert(is_char); S.insert(elem[0]); }
-        else if (part[0] == "#G") { Assert(is_char); G.insert(elem[0]); }
+        if (part[0] == "#Q") { Assert(check_bracket(part[2])); Q.push_back(elem); }
+        else if (part[0] == "#S") { Assert(check_bracket(part[2])); Assert(is_char); S.insert(elem[0]); }
+        else if (part[0] == "#G") { Assert(check_bracket(part[2])); Assert(is_char); G.insert(elem[0]); }
         else if (part[0] == "#q0") { q0 = state_id(elem); }
         else if (part[0] == "#B") { Assert(is_char); B = elem[0]; }
-        else if (part[0] == "#F") { F.insert(state_id(elem)); }
+        else if (part[0] == "#F") { Assert(check_bracket(part[2])); F.insert(state_id(elem)); }
         else if (part[0] == "#N") { tapenum = strtoint(elem); }
         else { Assert(0); }
       }
@@ -266,8 +269,9 @@ void print_tape(int id) {
   int pos1 = 0, pos2 = MAX_LEN - 1;
   while (pos1 < MAX_LEN && tapes[id][pos1] == B) pos1++;
   while (pos2 >= 0 && tapes[id][pos2] == B) pos2--;
-  if (pos1 > pos2) pos1 = pos2 = cur[id];
-  pos1 = min(pos1, cur[id]); pos2 = max(pos2, cur[id]);
+  // if (pos1 > pos2) pos1 = pos2 = cur[id];
+  // pos1 = min(pos1, cur[id]); pos2 = max(pos2, cur[id]);
+  // should not output extra _
   for (int i = pos1; i <= pos2; ++i) cout << tapes[id][i];
 }
 
@@ -302,6 +306,19 @@ void Split(const string &src, vector<string> &ret, const string& c){
     pos2 = src.find(c, pos1);
   }
   if (pos1 != src.length()) ret.push_back(src.substr(pos1));
+}
+
+bool check_bracket(const string& src) {
+  int len = src.length();
+  if (src[0] != '{' || src[len - 1] != '}') return false;
+  return true;
+}
+
+bool check_in_space(const string &src) {
+  for (int i = 0; i < src.length(); ++i) {
+    if (src[i] == ' ') return false;
+  }
+  return true;
 }
 
 void extract(const string &src, vector<string> &ret) {
