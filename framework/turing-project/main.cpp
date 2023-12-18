@@ -8,6 +8,7 @@ using namespace std;
 
 /* const */
 const int MAX_LEN = (1 << 20);
+const int DEF_NUM = 7;
 
 /* macro definition */
 #define STRINGIFY(s)  #s
@@ -20,6 +21,7 @@ const int MAX_LEN = (1 << 20);
 }})
 #define IDX(i) abs(i - (MAX_LEN >> 1))
 
+/* struct */
 struct transition {
   int _state, state_; // state
   string _sym, sym_; // tape symbol combinition
@@ -28,8 +30,7 @@ struct transition {
 
 void Split(const string &src, vector<string> &ret, const string& c);
 void extract(const string &src, vector<string> &ret);
-bool check_bracket(const string &src);
-bool check_in_space(const string &src);
+void check_state(string& state);
 int parse_tmfile(string &filename);
 void check_input(string &input);
 void init_emulator(string &input);
@@ -39,6 +40,7 @@ void run_emulator();
 void print_tape(int id);
 void print_tape_runtime(int id, int len);
 int strtoint(string &input);
+bool isnum(string &input);
 int digits(int num);
 
 
@@ -52,8 +54,8 @@ static int q0;
 static char B;
 static set<int> F;
 static int N;
-static int tapenum;
 static vector<transition> delta;
+static bool defined[DEF_NUM];
 
 /* runtime variables */
 static vector<vector<char>> tapes;
@@ -97,11 +99,9 @@ int main(int argc, char* argv[]){
 int parse_tmfile(string &filename) {
   ifstream infile(filename);
   if (!infile.is_open()) return -1;
+  for (int i = 0; i < DEF_NUM; ++i) defined[i] = false;
   string line;
-  /* for each line in file */
   while (getline(infile, line)) {
-    vector<string> part; part.clear();
-    /* cut off comment */
     string::size_type end = 0;
     while (end < line.length() && line[end] != ';') { end++; } end--;
     while (end >= 0 && line[end] == ' ') { end--; } end++;
@@ -109,38 +109,82 @@ int parse_tmfile(string &filename) {
     /* empty line */
     if (line.length() == 0) { continue; }
 
-    Split(line, part, " ");
     /* tm definition */
     if (line[0] == '#') {
       vector<string> elements; elements.clear();
-      extract(part[2], elements);
-      for (auto elem : elements) {
-        Assert(check_in_space(elem));
-        bool is_char = elem.length() == 1;
-        if (part[0] == "#Q") { Assert(check_bracket(part[2])); Q.push_back(elem); }
-        else if (part[0] == "#S") { Assert(check_bracket(part[2])); Assert(is_char); S.insert(elem[0]); }
-        else if (part[0] == "#G") { Assert(check_bracket(part[2])); Assert(is_char); G.insert(elem[0]); }
-        else if (part[0] == "#q0") { q0 = state_id(elem); }
-        else if (part[0] == "#B") { Assert(is_char); B = elem[0]; }
-        else if (part[0] == "#F") { Assert(check_bracket(part[2])); F.insert(state_id(elem)); }
-        else if (part[0] == "#N") { tapenum = strtoint(elem); }
-        else { Assert(0); }
+      Assert(line.length() >= 6);
+      if (line[1] == 'Q') {
+        Assert(line.substr(0, 5) == "#Q = ");
+        Assert(!defined[0]); defined[0] = true;
+        Assert(line[5] == '{' && line.back() == '}');
+        extract(line.substr(5), elements);
+        for (auto elem : elements) { check_state(elem); Q.push_back(elem); }
       }
+      else if (line[1] == 'S') {
+        Assert(line.substr(0, 5) == "#S = ");
+        Assert(!defined[1]); defined[1] = true;
+        Assert(line[5] == '{' && line.back() == '}');
+        extract(line.substr(5), elements);
+        for (auto elem : elements) {
+          Assert(elem.length() == 1);
+          S.insert(elem[0]);
+        }
+      }
+      else if (line[1] == 'G') {
+        Assert(line.substr(0, 5) == "#G = ");
+        Assert(!defined[2]); defined[2] = true;
+        Assert(line[5] == '{' && line.back() == '}');
+        extract(line.substr(5), elements);
+        for (auto elem : elements) {
+          Assert(elem.length() == 1);
+          G.insert(elem[0]);
+        }
+      }
+      else if (line[1] == 'q') {
+        Assert(line.substr(0, 6) == "#q0 = ");
+        Assert(!defined[3]); defined[3] = true;
+        extract(line.substr(6), elements);
+        Assert(elements.size() == 1);
+        q0 = state_id(elements[0]);
+      }
+      else if (line[1] == 'B') {
+        Assert(line.substr(0, 6) == "#B = _");
+        Assert(!defined[4]); defined[4] = true;
+        B = '_';
+      }
+      else if (line[1] == 'F') {
+        Assert(line.substr(0, 5) == "#F = ");
+        Assert(!defined[5]); defined[5] = true;
+        Assert(line[5] == '{' && line.back() == '}');
+        extract(line.substr(5), elements);
+        for (auto elem : elements) F.insert(state_id(elem));
+      }
+      else if (line[1] == 'N') {
+        Assert(line.substr(0, 5) == "#N = ");
+        Assert(!defined[6]); defined[6] = true;
+        extract(line.substr(5), elements);
+        Assert(elements.size() == 1 && isnum(elements[0]));
+        N = strtoint(elements[0]);
+      }
+      else { Assert(0); }
     }
     /* transition functions */
     else {
+      vector<string> part; part.clear();
+      Split(line, part, " ");
       transition t;
       Assert(part.size() == 5);
       t._state = state_id(part[0]); t.state_ = state_id(part[4]);
       t._sym = part[1]; t.sym_ = part[2];
       t.dir = part[3];
-      Assert(t._sym.length() == tapenum && t.sym_.length() == tapenum && t.dir.length() == tapenum);
+      Assert(t._sym.length() == N && t.sym_.length() == N && t.dir.length() == N);
       delta.push_back(t);
     }
   }
 
   /* do some check for the turing machine */
   // S \subseteq G
+  for (int i = 0; i < DEF_NUM; ++i) Assert(defined[i]);
   Assert(B == '_');
   Assert(G.find('*') == G.end());
   Assert(S.find('*') == S.end());
@@ -171,7 +215,7 @@ void check_input(string &input) {
 }
 
 void init_emulator(string &input) {
-  for (int i = 0; i < tapenum; ++i) {
+  for (int i = 0; i < N; ++i) {
     tapes.push_back(vector<char>(MAX_LEN, B));
     cur.push_back((MAX_LEN >> 1));
   }
@@ -198,7 +242,7 @@ int trans_id(int state, string &syms) {
     transition t = delta[i];
     if (t._state == state) {
       bool flag = true;
-      for (int j = 0; j < tapenum; ++j) {
+      for (int j = 0; j < N; ++j) {
         if (t._sym[j] == '*') continue;
         if (t._sym[j] != syms[j]) { flag = false; break; }
       }
@@ -212,7 +256,7 @@ void run_emulator() {
   int step = 0, state = q0;
   while(1) {
     if (verbose) {
-      int len = digits(tapenum) + 6;
+      int len = digits(N) + 6;
 
       printf("%-*s: %d\n", len, "Step", step);
       printf("%-*s: ", len, "State");
@@ -220,12 +264,12 @@ void run_emulator() {
       printf("%-*s: ", len, "Acc");
       if (accept) cout << "Yes" << endl;
       else cout << "No" << endl;
-      for (int i = 0; i < tapenum; ++i) print_tape_runtime(i, digits(tapenum) + 1);
+      for (int i = 0; i < N; ++i) print_tape_runtime(i, digits(N) + 1);
       cout << "---------------------------------------------" << endl;
     }
 
     string syms = "";
-    for (int i = 0; i < tapenum; ++i) syms += tapes[i][cur[i]];
+    for (int i = 0; i < N; ++i) syms += tapes[i][cur[i]];
 
     int transition_id = trans_id(state, syms);
     if (transition_id == -1) break; // halt
@@ -236,7 +280,7 @@ void run_emulator() {
     state = t.state_;
     if (F.find(state) != F.end()) accept = true;
 
-    for (int id = 0; id < tapenum; ++id) {
+    for (int id = 0; id < N; ++id) {
       /* rewrite symbol */
       if (!(t._sym[id] == '*' && t.sym_[id] == '*')) {
         tapes[id][cur[id]] = t.sym_[id];
@@ -308,17 +352,10 @@ void Split(const string &src, vector<string> &ret, const string& c){
   if (pos1 != src.length()) ret.push_back(src.substr(pos1));
 }
 
-bool check_bracket(const string& src) {
-  int len = src.length();
-  if (src[0] != '{' || src[len - 1] != '}') return false;
-  return true;
-}
-
-bool check_in_space(const string &src) {
-  for (int i = 0; i < src.length(); ++i) {
-    if (src[i] == ' ') return false;
+void check_state(string &state) {
+  for (auto c : state) {
+    Assert((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_');
   }
-  return true;
 }
 
 void extract(const string &src, vector<string> &ret) {
@@ -334,6 +371,14 @@ int strtoint(string &input) {
     ans += input[i] - '0';
   }
   return ans;
+}
+
+bool isnum(string &input) {
+  // rule out negtive numbers
+  for (auto i : input) {
+    if (!(i >= '0' && i <= '9')) return false;
+  }
+  return true;
 }
 
 int digits(int num) {
