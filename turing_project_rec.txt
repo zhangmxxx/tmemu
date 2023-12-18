@@ -13,3 +13,10 @@ TOSTRING的作用?
 
 bugs: 当一行的末尾有空格时, 会错误的将一段空格用"空格分割"后计入part.
 1. 如果行内(逗号间有空格, 那么第一步parse 空格时就会出错, 导致{被分到一个部分里, check_bracket出错.
+
+
+update syntax error:
+1. missing #: regard as transistion, first fail to pass transition check probably, then must fail to pass all-def check
+2. extra space in states. take space in states and then fail to pass state char check
+3. { }, fail to pass bracket check
+4. conclusion: partition using space fail to check invalid cases.
